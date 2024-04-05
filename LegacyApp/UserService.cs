@@ -1,36 +1,56 @@
 ﻿using System;
-using System.Numerics;
+using System.Collections.Generic;
 
 namespace LegacyApp
 {
+
     public class UserService
     {
+        private IClientRepository _clientRepository;
+        private IUserCreditService _userCreditService;
+        private IInputValidator _inputValidator;
+        private IUserDataAccess _userDataAccess;
+        private ICreditLimitCheck _creditLimitCheck;
+
+        public UserService(IClientRepository clientRepository, IUserCreditService userCreditService, 
+            IUserDataAccess userDataAccess, ICreditLimitCheck creditLimitCheck)
+        {
+            _clientRepository = clientRepository;
+            _userCreditService = userCreditService;
+            _inputValidator = new InputValidator();
+            _userDataAccess = userDataAccess;
+            _creditLimitCheck = creditLimitCheck;
+        }
+
+        [Obsolete]
+        public UserService()
+        { 
+            _clientRepository = new ClientRepository();
+            _userCreditService = new UserCreditService();
+            _inputValidator = new InputValidator();
+            _userDataAccess = new AdapterUserDataAccess();
+            _creditLimitCheck = new CreditLimitCheck();
+        }
+
         public bool AddUser(string firstName, string lastName, string email, DateTime dateOfBirth, int clientId)
-        {   //SRP - dodawanie uzytkownika tylko, a nie kilka roznych zadan do zrobienia.
-            if (string.IsNullOrEmpty(firstName) || string.IsNullOrEmpty(lastName))
+        {
+
+            if (!_inputValidator.ValidateName(firstName, lastName))
             {
                 return false;
             }
 
-
-
-
-            if (!email.Contains("@") && !email.Contains("."))
+            if (!_inputValidator.ValidateEmail(email))
             {
                 return false;
             }
 
-            var now = DateTime.Now;
-            int age = now.Year - dateOfBirth.Year;
-            if (now.Month < dateOfBirth.Month || (now.Month == dateOfBirth.Month && now.Day < dateOfBirth.Day)) age--;
-
-            if (age < 21)
+            if (!_inputValidator.ValidateAge(dateOfBirth))
             {
                 return false;
             }
-            //DIP
-            var clientRepository = new ClientRepository();
-            var client = clientRepository.GetById(clientId);
+
+            var client = _clientRepository.GetById(clientId);
 
             var user = new User
             {
@@ -40,52 +60,17 @@ namespace LegacyApp
                 FirstName = firstName,
                 LastName = lastName
             };
-            //DIP OCP
-            if (client.Type == "VeryImportantClient")
-            {
-                user.HasCreditLimit = false;
-            }
-            else if (client.Type == "ImportantClient")
-            {
-                using (var userCreditService = new UserCreditService())
-                {
-                    int creditLimit = userCreditService.GetCreditLimit(user.LastName, user.DateOfBirth);
-                    creditLimit = creditLimit * 2;
-                    user.CreditLimit = creditLimit;
-                }
-            }
-            else
-            {
-                user.HasCreditLimit = true;
-                using (var userCreditService = new UserCreditService())
-                {
-                    int creditLimit = userCreditService.GetCreditLimit(user.LastName, user.DateOfBirth);
-                    user.CreditLimit = creditLimit;
-                }
-            }
 
-            if (user.HasCreditLimit && user.CreditLimit < 500)
+            var userCreditLimitManager = new UserCreditLimit();
+            userCreditLimitManager.ApplyCreditLimitForClient(client, user, _userCreditService);
+
+            if (!_creditLimitCheck.ValidateCreditLimit(user))
             {
                 return false;
             }
 
-            UserDataAccess.AddUser(user);
+            _userDataAccess.AddUser(user);
             return true;
         }
-
-        public bool CheckName(string firstName, string lastName)
-        {
-            if (string.IsNullOrEmpty(firstName) || string.IsNullOrEmpty(lastName))
-            {
-                return false;
-            }
-            return true;
-        }
-
-    
-
-
     }
-
-   
 }

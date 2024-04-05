@@ -6,9 +6,8 @@ using System.Threading.Tasks;
 
 namespace LegacyApp
 {
-    internal class InputValidator : IInuputValidator
+    public interface ICreditLimitCheck
     {
-        public InputValidator() { 
-        }
+        public bool ValidateCreditLimit(User user);
     }
 }

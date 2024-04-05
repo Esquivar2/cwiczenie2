@@ -6,8 +6,8 @@ using System.Threading.Tasks;
 
 namespace LegacyApp
 {
-    internal interface IInuputValidator
+    public interface IClientRepository
     {
-        public bool CheckName(string firstname, string lastname);
+        public Client GetById(int clientId);
     }
 }
